@@ -226,6 +226,10 @@ sub GetPkgFormat()
    {
       return "rpm";
    }
+   elsif ( -f "/etc/arch-release" )
+   {
+      return "pkg.tar.zst";
+   }   
    elsif ( -f "/etc/lsb-release" )
    {
       return "deb";
@@ -246,6 +250,10 @@ sub GetOsTag()
       {
          chomp( $gOSTAG = `sed -n -e '1{s/[^0-9]*/r/; s/[.].*//; p;}' /etc/redhat-release` );
       }
+      elsif ( -f "/etc/arch-release" )
+      {
+         chomp( $gOSTAG = `sed -n -e '/ID/{s/.*=//; s/[.].*//; p;}' /etc/os-release | head -1` );
+      }      
       elsif ( -f "/etc/lsb-release" )
       {
          chomp( $gOSTAG = `sed -n -e '/DISTRIB_RELEASE/{s/.*=/u/; s/[.].*//; p;}' /etc/lsb-release` );
@@ -510,6 +518,14 @@ sub _SanitizePkgList($)
 
                      $san_comp .= " " . $cmp . " " . $ver . "$tag";
                   }
+                  if ( $CFG{PKG_FORMAT} eq "pkg.tar.zst" )
+                  {
+                     $cmp = ">" if ( $cmp eq ">>" );
+                     $cmp = "<" if ( $cmp eq "<<" );
+                     $cmp = "=" if ( $cmp eq "==" );
+
+                     $san_comp .= " " . $cmp . " " . $ver . "$tag";
+                  }
                }
             }
 
@@ -517,6 +533,8 @@ sub _SanitizePkgList($)
               if ( $CFG{PKG_FORMAT} eq "deb" );
             $san_entry .= ( $san_entry && $san_comp ? " or " : "" ) . $san_comp
               if ( $CFG{PKG_FORMAT} eq "rpm" );
+            $san_entry .= ( $san_entry && $san_comp ? " or " : "" ) . $san_comp
+              if ( $CFG{PKG_FORMAT} eq "pkg.tar.zst" );
          }
       }
 
@@ -558,6 +576,11 @@ sub Build()
    {
       System( "cp", "-a", "$GLOBAL_PATH_TO_SCRIPT_DIR/default-template/debian", "$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}/" );
       System( "cp", "-a", "$CFG{CFG_DIR}/debian", "$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}/" ) if ( -d "$CFG{CFG_DIR}/debian" );
+   }
+   elsif ( $CFG{PKG_FORMAT} eq "pkg.tar.zst" )
+   {
+      System( "cp", "-a", "$GLOBAL_PATH_TO_SCRIPT_DIR/default-template/arch", "$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}/" );
+      System( "cp", "-a", "$CFG{CFG_DIR}/arch", "$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}/" ) if ( -d "$CFG{CFG_DIR}/arch" );
    }
    else
    {
@@ -601,10 +624,6 @@ sub Build()
 
                   if ( $line =~ m/^\s*[A-Za-z][A-Za-z_0-9-]*\s*[:](\s*,*\s*)*$/ )    # drop lines with empty headers
                   {
-			  if ( $line =~ "override_dh_strip_nondeterminism:" )
-                         {
-                           print FDw $line;
-                         }
                   }
                   else
                   {
@@ -668,6 +687,24 @@ sub Build()
       System( "mv", "-v", $_, "$CFG{OUT_DIST_DIR}/$CFG{PKG_OS_TAG}/" ) foreach glob("$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}_*.*");
       print "=========================================================================================================\n";
    }
+   elsif ( $CFG{PKG_FORMAT} eq "pkg.tar.zst" )
+   {
+      my @pkg_type_opts = ( "-sf");
+      # push( @pkg_type_opts, "-b" ) if ( $CFG{OUT_TYPE} eq "binary" );
+      # push( @pkg_type_opts, "-S" ) if ( $CFG{OUT_TYPE} eq "source" );
+
+      System( "cp", "-a", $_, "$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}/@{[basename $_]}" ) foreach glob("$CFG{OUT_STAGE_DIR}/$CFG{PKG_NAME}/*");
+
+      {
+         chdir("$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}");
+         chdir($CWD);
+      }
+
+      print "\n\n";
+      print "=========================================================================================================\n";
+      System( "mv", "-v", $_, "$CFG{OUT_DIST_DIR}/$CFG{PKG_OS_TAG}/" ) foreach glob("$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}_*.*");
+      print "=========================================================================================================\n";
+   }   
    else
    {
       Die("Unknown PACKAGING format");
