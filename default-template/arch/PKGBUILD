@@ -1,0 +1,27 @@
+pkgname=@@PKG_NAME@@
+pkgver=@@PKG_VERSION@@
+pkgrel=@@PKG_RELEASE@@
+license=('ZPL and other')
+groups=('zextras-server')
+url="http://www.zimbra.com"
+arch=('x86_64')
+depends=(@@PKG_DEPENDS@@)
+makedepends=(@@PKG_PRE_DEPENDS@@)
+provides=(@@PKG_PROVIDES@@)
+replaces=(@@PKG_OBSOLETES@@)
+conflicts=(@@PKG_CONFLICTS@@)
+pkgdesc="@@PKG_SUMMARY@@"
+
+prepare() {
+   cd "${srcdir}"
+}
+
+build() {
+   cd "${srcdir}"
+}
+
+package() {
+   cd "${srcdir}"
+}
+
+sha256sums=('SKIP')

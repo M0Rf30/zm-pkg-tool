@@ -222,7 +222,15 @@ sub System(@)
 
 sub GetPkgFormat()
 {
-   if ( -f "/etc/redhat-release" )
+   if ( -f "/etc/alpine-release" )
+   {
+      return "apk";
+   }
+   elsif ( -f "/etc/arch-release" )
+   {
+      return "zst";
+   }
+   elsif ( -f "/etc/redhat-release" )
    {
       return "rpm";
    }
@@ -242,7 +250,15 @@ sub GetOsTag()
 
    if ( !defined $gOSTAG )
    {
-      if ( -f "/etc/redhat-release" )
+      if ( -f "/etc/alpine-release" )
+      {
+         chomp( $gOSTAG = "alpn" );
+      }
+      elsif ( -f "/etc/arch-release" )
+      {
+         chomp( $gOSTAG = "arch" );
+      }
+      elsif ( -f "/etc/redhat-release" )
       {
          chomp( $gOSTAG = `sed -n -e '1{s/[^0-9]*/r/; s/[.].*//; p;}' /etc/redhat-release` );
       }
@@ -510,6 +526,22 @@ sub _SanitizePkgList($)
 
                      $san_comp .= " " . $cmp . " " . $ver . "$tag";
                   }
+                  if ( $CFG{PKG_FORMAT} eq "apk" )
+                  {
+                     $cmp = ">" if ( $cmp eq ">>" );
+                     $cmp = "<" if ( $cmp eq "<<" );
+                     $cmp = "=" if ( $cmp eq "==" );
+
+                     $san_comp .= " " . $cmp . " " . $ver . "$tag";
+                  }                  
+                  if ( $CFG{PKG_FORMAT} eq "zst" )
+                  {
+                     $cmp = ">" if ( $cmp eq ">>" );
+                     $cmp = "<" if ( $cmp eq "<<" );
+                     $cmp = "=" if ( $cmp eq "==" );
+
+                     $san_comp .= " " . $cmp . " " . $ver . "$tag";
+                  }
                }
             }
 
@@ -517,6 +549,10 @@ sub _SanitizePkgList($)
               if ( $CFG{PKG_FORMAT} eq "deb" );
             $san_entry .= ( $san_entry && $san_comp ? " or " : "" ) . $san_comp
               if ( $CFG{PKG_FORMAT} eq "rpm" );
+            $san_entry .= ( $san_entry && $san_comp ? " or " : "" ) . $san_comp
+              if ( $CFG{PKG_FORMAT} eq "apk" );
+            $san_entry .= ( $san_entry && $san_comp ? " or " : "" ) . $san_comp
+              if ( $CFG{PKG_FORMAT} eq "zst" );
          }
       }
 
@@ -558,6 +594,16 @@ sub Build()
    {
       System( "cp", "-a", "$GLOBAL_PATH_TO_SCRIPT_DIR/default-template/debian", "$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}/" );
       System( "cp", "-a", "$CFG{CFG_DIR}/debian", "$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}/" ) if ( -d "$CFG{CFG_DIR}/debian" );
+   }
+   elsif ( $CFG{PKG_FORMAT} eq "apk" )
+   {
+      System( "cp", "-a", "$GLOBAL_PATH_TO_SCRIPT_DIR/default-template/alpn", "$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}/" );
+      System( "cp", "-a", "$CFG{CFG_DIR}/alpn", "$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}/" ) if ( -d "$CFG{CFG_DIR}/alpn" );
+   }   
+   elsif ( $CFG{PKG_FORMAT} eq "zst" )
+   {
+      System( "cp", "-a", "$GLOBAL_PATH_TO_SCRIPT_DIR/default-template/arch", "$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}/" );
+      System( "cp", "-a", "$CFG{CFG_DIR}/arch", "$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}/" ) if ( -d "$CFG{CFG_DIR}/arch" );
    }
    else
    {
@@ -664,6 +710,42 @@ sub Build()
       System( "mv", "-v", $_, "$CFG{OUT_DIST_DIR}/$CFG{PKG_OS_TAG}/" ) foreach glob("$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}_*.*");
       print "=========================================================================================================\n";
    }
+   elsif ( $CFG{PKG_FORMAT} eq "apk" )
+   {
+      my @pkg_type_opts = ( "-r");
+      # push( @pkg_type_opts, "-b" ) if ( $CFG{OUT_TYPE} eq "binary" );
+      # push( @pkg_type_opts, "-S" ) if ( $CFG{OUT_TYPE} eq "source" );
+
+      System( "cp", "-a", $_, "$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}/@{[basename $_]}" ) foreach glob("$CFG{OUT_STAGE_DIR}/$CFG{PKG_NAME}/*");
+
+      {
+         chdir("$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}");
+         chdir($CWD);
+      }
+
+      print "\n\n";
+      print "=========================================================================================================\n";
+      System( "mv", "-v", $_, "$CFG{OUT_DIST_DIR}/$CFG{PKG_OS_TAG}/" ) foreach glob("$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}_*.*");
+      print "=========================================================================================================\n";
+   }     
+   elsif ( $CFG{PKG_FORMAT} eq "zst" )
+   {
+      my @pkg_type_opts = ( "-sf");
+      # push( @pkg_type_opts, "-b" ) if ( $CFG{OUT_TYPE} eq "binary" );
+      # push( @pkg_type_opts, "-S" ) if ( $CFG{OUT_TYPE} eq "source" );
+
+      System( "cp", "-a", $_, "$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}/@{[basename $_]}" ) foreach glob("$CFG{OUT_STAGE_DIR}/$CFG{PKG_NAME}/*");
+
+      {
+         chdir("$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}");
+         chdir($CWD);
+      }
+
+      print "\n\n";
+      print "=========================================================================================================\n";
+      System( "mv", "-v", $_, "$CFG{OUT_DIST_DIR}/$CFG{PKG_OS_TAG}/" ) foreach glob("$CFG{OUT_TEMP_DIR}/$CFG{PKG_NAME}_*.*");
+      print "=========================================================================================================\n";
+   }   
    else
    {
       Die("Unknown PACKAGING format");
